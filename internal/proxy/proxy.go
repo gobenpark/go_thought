@@ -27,6 +27,19 @@ type ProxyServer struct {
 }
 
 func NewProxyServer(config Config) *ProxyServer {
+
+	if config.Port == 0 {
+		config.Port = 8080
+	}
+
+	if config.RequestTimeout == 0 {
+		config.RequestTimeout = 30 * time.Second
+	}
+
+	if config.Logger == nil {
+		config.Logger = log.NewZapLogger()
+	}
+
 	return &ProxyServer{
 		config:     config,
 		httpServer: nil,
@@ -40,7 +53,7 @@ func (p *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	proxyReq, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
 	if err != nil {
-		//TODO: Logger
+		p.config.Logger.Error("Error creating proxy request", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -60,7 +73,7 @@ func (p *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := p.client.Do(proxyReq)
 	if err != nil {
-		//TODO: Logger
+		p.config.Logger.Error("proxy client error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -71,17 +84,17 @@ func (p *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	//p.logger.Printf("[RESP:%s] %s %d %s", requestID, r.URL.String(), resp.StatusCode, http.StatusText(resp.StatusCode))
-	//for name, values := range resp.Header {
-	//	for _, value := range values {
-	//		p.logger.Printf("[RESP:%s] Header: %s: %s", requestID, name, value)
-	//	}
-	//}
+	p.config.Logger.Debug("response", "url", r.URL.String(), "statusCode", resp.StatusCode, "statusText", http.StatusText(resp.StatusCode))
+	for name, values := range resp.Header {
+		for _, value := range values {
+			p.config.Logger.Debug("headers", name, value)
+		}
+	}
 
 	w.WriteHeader(resp.StatusCode)
 	bytesWritten, err := io.Copy(w, resp.Body)
 	if err != nil {
-		//p.logger.Printf("[ERR:%s] Failed to write response: %v", requestID, err)
+		p.config.Logger.Error("proxy client error", err)
 		return
 	}
 	fmt.Println(bytesWritten)
