@@ -93,6 +93,22 @@ func TestProxyServer_ServeHTTP(t *testing.T) {
 		assert.Equal(t, "test-value", string(body))
 	})
 
+	t.Run("fail test", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://localhost:8080"+"/headers", nil)
+		require.NoError(t, err)
+
+		resp, err := client.Do(req)
+		require.Nil(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+		resp.Header.Get("X-Test-Header")
+
+		body, err := io.ReadAll(resp.Body)
+		require.Nil(t, err)
+		assert.Contains(t, string(body), "connection refused")
+	})
+
 	t.Run("404 error handling", func(t *testing.T) {
 		resp, err := client.Get(targetServer.URL + "/nonexistent")
 		require.NoError(t, err)
