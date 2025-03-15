@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -41,8 +42,10 @@ func NewProxyServer(config Config) *ProxyServer {
 	}
 
 	return &ProxyServer{
-		config:     config,
-		httpServer: nil,
+		config: config,
+		httpServer: &http.Server{
+			Addr: fmt.Sprintf(":%d", config.Port),
+		},
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -98,5 +101,14 @@ func (p *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Println(bytesWritten)
+}
 
+func (p *ProxyServer) Start() error {
+	p.httpServer.Handler = p
+
+	return p.httpServer.ListenAndServe()
+}
+
+func (p *ProxyServer) Shutdown(ctx context.Context) error {
+	return p.httpServer.Shutdown(ctx)
 }
