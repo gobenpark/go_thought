@@ -40,7 +40,7 @@ func NewProxyServer(config Config) *ProxyServer {
 	}
 
 	if config.Logger == nil {
-		config.Logger = log.NewZapLogger()
+		config.Logger = log.NewZapLogger(false)
 	}
 
 	return &ProxyServer{

@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"context"
@@ -10,11 +10,26 @@ import (
 
 	"github.com/gobenpark/go_thought/internal/log"
 	"github.com/gobenpark/go_thought/internal/proxy"
+	"github.com/spf13/cobra"
 )
 
-func main() {
+var (
+	RunCmd = &cobra.Command{
+		Use: "run",
+		Run: func(cmd *cobra.Command, args []string) {
+			Run()
+		},
+	}
+	debug bool
+)
 
-	logger := log.NewZapLogger()
+func init() {
+	RunCmd.Flags().BoolVarP(&debug, "debug", "d", false, "debug mode")
+
+}
+
+func Run() {
+	logger := log.NewZapLogger(debug)
 	config := proxy.Config{
 		Logger:         logger,
 		Port:           0,

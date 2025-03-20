@@ -9,7 +9,7 @@ type ZapLogger struct {
 	sugar *zap.SugaredLogger
 }
 
-func NewZapLogger() *ZapLogger {
+func NewZapLogger(debug bool) *ZapLogger {
 	logLevelSeverity := map[zapcore.Level]string{
 		zapcore.DebugLevel:  "DEBUG",
 		zapcore.InfoLevel:   "INFO",
@@ -21,7 +21,11 @@ func NewZapLogger() *ZapLogger {
 	}
 	conf := zap.NewProductionConfig()
 
-	conf.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	if debug {
+		conf.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	} else {
+		conf.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	}
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.TimeKey = "times"
 	encoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
