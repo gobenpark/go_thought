@@ -1,11 +1,13 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -54,7 +56,26 @@ func NewProxyServer(config Config) *ProxyServer {
 
 func (p *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	proxyReq, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
+	p.config.Logger.Debug("receive url", "url", r.URL.String())
+	re := regexp.MustCompile("OpenAI*")
+	if re.MatchString(r.Header.Get("User-Agent")) {
+		r.URL.Scheme = "https"
+		r.URL.Host = "api.openai.com"
+		r.URL.Path = "/v1" + r.URL.Path
+		p.config.Logger.Debug(r.URL.String())
+	}
+
+	buf := &bytes.Buffer{}
+	_, err := io.Copy(buf, r.Body)
+	if err != nil {
+		p.config.Logger.Error("copy error", err)
+		return
+	}
+
+	requestBodyCopy := io.NopCloser(buf)
+	r.Body = io.NopCloser(buf)
+
+	proxyReq, err := http.NewRequest(r.Method, r.URL.String(), requestBodyCopy)
 	if err != nil {
 		p.config.Logger.Error("Error creating proxy request", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -70,6 +91,7 @@ func (p *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	for name, values := range r.Header {
 		for _, value := range values {
+			p.config.Logger.Debug(name, "value", value)
 			proxyReq.Header.Add(name, value)
 		}
 	}
@@ -95,12 +117,11 @@ func (p *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(resp.StatusCode)
-	bytesWritten, err := io.Copy(w, resp.Body)
+	_, err = io.Copy(w, resp.Body)
 	if err != nil {
 		p.config.Logger.Error("proxy client error", err)
 		return
 	}
-	fmt.Println(bytesWritten)
 }
 
 func (p *ProxyServer) Start() error {

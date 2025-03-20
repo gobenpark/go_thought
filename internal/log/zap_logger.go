@@ -21,8 +21,7 @@ func NewZapLogger() *ZapLogger {
 	}
 	conf := zap.NewProductionConfig()
 
-	zap.LevelFlag("INFO", zap.InfoLevel, "info")
-	conf.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	conf.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.TimeKey = "times"
 	encoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
@@ -35,7 +34,7 @@ func NewZapLogger() *ZapLogger {
 		"stderr",
 	}
 
-	l := zap.Must(conf.Build(zap.AddCallerSkip(2)))
+	l := zap.Must(conf.Build(zap.AddCallerSkip(1)))
 
 	return &ZapLogger{
 		sugar: l.Sugar(),
