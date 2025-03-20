@@ -19,8 +19,8 @@ var (
 )
 
 func init() {
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "f", "", "config file (default is ./gothought.yaml)")
 	cobra.OnInitialize(initConfig)
-
 	rootCmd.AddCommand(cmd.RunCmd)
 }
 
@@ -28,12 +28,9 @@ func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 	} else {
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
-
-		viper.AddConfigPath(home)
+		viper.AddConfigPath(".")
 		viper.SetConfigType("yaml")
-		viper.SetConfigName(".cobra")
+		viper.SetConfigName("gothought")
 	}
 
 	viper.AutomaticEnv()
@@ -44,5 +41,8 @@ func initConfig() {
 }
 
 func main() {
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
