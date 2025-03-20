@@ -88,29 +88,10 @@ func (o *OpenAI) ParseResponse(resp *http.Response, writer http.ResponseWriter) 
 
 	isStreaming := strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream")
 	if isStreaming {
-		reader := bufio.NewReader(resp.Body)
-		var fullResponse strings.Builder
-
-		for {
-			line, err := reader.ReadBytes('\n')
-			if err != nil && err != io.EOF {
-				return err
-			}
-
-			// 응답 캡처
-			fullResponse.Write(line)
-
-			// 클라이언트에 데이터 전송
-			_, err = writer.Write(line)
-			if err != nil {
-				return err
-			}
-
-			if flusher, ok := writer.(http.Flusher); ok {
-				flusher.Flush()
-			}
+		if err := o.StreamParser(resp, writer); err != nil {
+			return err
 		}
-		fmt.Println(fullResponse.String())
+		return nil
 	}
 
 	respBuf := &bytes.Buffer{}
@@ -138,6 +119,33 @@ func (o *OpenAI) ParseResponse(resp *http.Response, writer http.ResponseWriter) 
 		} else {
 			// 압축 해제된 내용 출력
 			fmt.Println(uncompressedBuf.String())
+		}
+	}
+
+	return nil
+}
+
+func (o *OpenAI) StreamParser(resp *http.Response, writer http.ResponseWriter) error {
+	reader := bufio.NewReader(resp.Body)
+	var fullResponse strings.Builder
+
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err != nil && err != io.EOF {
+			return err
+		}
+
+		// 응답 캡처
+		fullResponse.Write(line)
+
+		// 클라이언트에 데이터 전송
+		_, err = writer.Write(line)
+		if err != nil {
+			return err
+		}
+
+		if flusher, ok := writer.(http.Flusher); ok {
+			flusher.Flush()
 		}
 	}
 
