@@ -35,6 +35,7 @@ Future enhancements planned for go_thought include:
 - Response transformation capabilities
 - Support for multiple LLM providers
 - Performance analytics
+- Prompt analytics
 
 ## Getting Started
 
