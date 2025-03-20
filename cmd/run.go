@@ -11,6 +11,7 @@ import (
 	"github.com/gobenpark/go_thought/internal/log"
 	"github.com/gobenpark/go_thought/internal/proxy"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -25,17 +26,16 @@ var (
 
 func init() {
 	RunCmd.Flags().BoolVarP(&debug, "debug", "d", false, "debug mode")
-
 }
 
 func Run() {
 	logger := log.NewZapLogger(debug)
-	config := proxy.Config{
-		Logger:         logger,
-		Port:           0,
-		TargetURL:      "",
-		LogRequests:    false,
-		RequestTimeout: 0,
+	config := proxy.Config{}
+	p := proxy.Config{}
+	err := viper.UnmarshalKey("config", &p)
+	if err != nil {
+		logger.Fatal("Failed to unmarshal config", "err", err)
+		return
 	}
 
 	fmt.Printf(` 
@@ -73,5 +73,4 @@ version: %s
 	}
 
 	logger.Info("proxy server shutdown")
-
 }

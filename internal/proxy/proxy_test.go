@@ -94,7 +94,7 @@ func TestProxyServer_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("fail test", func(t *testing.T) {
-		req, err := http.NewRequest("GET", "http://localhost:8080"+"/headers", nil)
+		req, err := http.NewRequest("GET", "http://localhost:51234"+"/headers", nil)
 		require.NoError(t, err)
 
 		resp, err := client.Do(req)
