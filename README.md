@@ -16,14 +16,24 @@ llm = init_chat_model(model="gpt-4o-mini", model_provider="openai")
 llm.invoke({})
 ```
 
-## Overview
 
-go_thought is a specialized proxy server designed to enhance interactions with Large Language Models. It serves as an intermediary layer that can add various capabilities to LLM requests and responses.
+
+## Why go_thought?
+
+I created go_thought to solve common challenges when working with LLM applications
+
+`Zero-code integration`: Add powerful features to your LLM pipeline without modifying your application code
+`Visibility`: Gain insights into your LLM usage patterns, performance, and costs
+`Optimization`: Improve performance and reduce costs with intelligent caching and request management
+`Flexibility`: Work with multiple LLM providers through a single, consistent interface
+
+go_thought acts as a transparent layer between your application and LLM providers, adding valuable functionality without disrupting your existing workflow.
 
 ## Features
 
 - Acts as a proxy server for LLM API calls
-- Designed for extensibility with new features planned
+- Seamless integration with existing LLM applications
+- Designed for extensibility with robust plugin architecture
 
 ## Roadmap
 
@@ -36,6 +46,7 @@ Future enhancements planned for go_thought include:
 - Support for multiple LLM providers
 - Performance analytics
 - Prompt analytics
+- Cost tracking and optimization
 
 ## Getting Started
 
