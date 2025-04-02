@@ -18,6 +18,8 @@ func (c *Client) State(st StateType) State {
 	switch st {
 	case OPENAI:
 		return NewOpenAIState(c)
+	case CLAUDE:
+		return NewClaudeState(c)
 	}
 	return nil
 }

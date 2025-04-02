@@ -6,6 +6,7 @@ type StateType string
 
 const (
 	OPENAI StateType = "openai"
+	CLAUDE StateType = "claude"
 )
 
 type State interface {
@@ -13,6 +14,6 @@ type State interface {
 	Prompt(message Message) State
 	HumanPrompt(prompt string) State
 	AIPrompt(prompt string) State
-	Q(ctx context.Context) ([]Message, error)
-	QStream(ctx context.Context, callback func(Message) error) error
+	Q(ctx context.Context) ([]ResponseMessage, error)
+	QStream(ctx context.Context, callback func(ResponseMessage) error) error
 }

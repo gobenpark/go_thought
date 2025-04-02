@@ -95,27 +95,21 @@ func (o *OpenAIState) Prompt(message Message) State {
 
 func (o *OpenAIState) HumanPrompt(prompt string) State {
 	o.messages = append(o.messages, Message{
-		Role:    "human",
+		Role:    "user",
 		Message: prompt,
 	})
 	return o
 }
 
-func (o *OpenAIState) Q(ctx context.Context) ([]Message, error) {
+func (o *OpenAIState) Q(ctx context.Context) ([]ResponseMessage, error) {
 
 	body := OpenAIBody{
 		Model: o.client.model,
 		Messages: lo.Map(o.messages, func(item Message, index int) OpenAIMessage {
-			om := OpenAIMessage{
+			return OpenAIMessage{
 				Content: item.Message,
 				Role:    item.Role,
 			}
-
-			switch item.Role {
-			case "human":
-				om.Role = "user"
-			}
-			return om
 		}),
 		Temperature:      0.7,
 		MaxTokens:        1024,
@@ -146,10 +140,9 @@ func (o *OpenAIState) Q(ctx context.Context) ([]Message, error) {
 		return nil, err
 	}
 
-	var responseMessage []Message
+	var responseMessage []ResponseMessage
 	for _, i := range result.Choices {
-		responseMessage = append(responseMessage, Message{
-			Role:    i.Message.Role,
+		responseMessage = append(responseMessage, ResponseMessage{
 			Message: i.Message.Content,
 		})
 	}
@@ -157,7 +150,7 @@ func (o *OpenAIState) Q(ctx context.Context) ([]Message, error) {
 	return responseMessage, nil
 }
 
-func (o *OpenAIState) QStream(ctx context.Context, callback func(Message) error) error {
+func (o *OpenAIState) QStream(ctx context.Context, callback func(ResponseMessage) error) error {
 	body := OpenAIBody{
 		Model: o.client.model,
 		Messages: lo.Map(o.messages, func(item Message, index int) OpenAIMessage {
@@ -239,8 +232,7 @@ func (o *OpenAIState) QStream(ctx context.Context, callback func(Message) error)
 		}
 
 		if len(chunkResponse.Choices) > 0 && chunkResponse.Choices[0].Delta.Content != "" {
-			message := Message{
-				Role:    "assistant",
+			message := ResponseMessage{
 				Message: chunkResponse.Choices[0].Delta.Content,
 			}
 
