@@ -91,8 +91,6 @@ func (o *OpenAIState) Q(ctx context.Context) (string, error) {
 		panic(err)
 	}
 
-	fmt.Println(string(bt))
-
 	request, err := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader(bt))
 	if err != nil {
 		panic(err)

@@ -1,3 +1,8 @@
+
+<p align="center">
+  <img src="./go_thought.png" alt="go_thought Logo" width="300">
+</p>
+
 # go_thought
 
 A lightweight, intuitive library for building LLM-powered applications in Go.
