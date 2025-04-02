@@ -7,8 +7,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-
-	"github.com/samber/lo"
 )
 
 type ClaudeInput struct {
@@ -73,15 +71,10 @@ func (c *ClaudeState) AIPrompt(prompt string) State {
 }
 
 func (c *ClaudeState) Q(ctx context.Context) ([]ResponseMessage, error) {
-	body := OpenAIBody{
-		Model: c.client.model,
-		Messages: lo.Map(c.messages, func(item Message, index int) OpenAIMessage {
-			return OpenAIMessage{
-				Content: item.Message,
-				Role:    item.Role,
-			}
-		}),
-		MaxTokens: 1024,
+	body := ClaudeInput{
+		Model:    c.client.model,
+		Messages: c.messages,
+		MaxToken: 1024,
 	}
 	bt, err := json.Marshal(body)
 	if err != nil {
