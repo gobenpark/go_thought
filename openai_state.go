@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/samber/lo"
@@ -17,6 +20,7 @@ type OpenAIBody struct {
 	TopP             int             `json:"top_p"`
 	FrequencyPenalty float32         `json:"frequency_penalty"`
 	PresencePenalty  float32         `json:"presence_penalty"`
+	Stream           bool            `json:"stream"`
 }
 
 type OpenAIMessage struct {
@@ -151,4 +155,100 @@ func (o *OpenAIState) Q(ctx context.Context) ([]Message, error) {
 	}
 
 	return responseMessage, nil
+}
+
+func (o *OpenAIState) Q_Stream(ctx context.Context, callback func(Message) error) error {
+	body := OpenAIBody{
+		Model: o.client.model,
+		Messages: lo.Map(o.messages, func(item Message, index int) OpenAIMessage {
+			om := OpenAIMessage{
+				Content: item.Message,
+				Role:    item.Role,
+			}
+			switch item.Role {
+			case "human":
+				om.Role = "user"
+			}
+			return om
+		}),
+		Temperature:      0.7,
+		MaxTokens:        1024,
+		TopP:             1,
+		FrequencyPenalty: 0.5,
+		PresencePenalty:  0.5,
+		Stream:           true,
+	}
+
+	bt, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	request, err := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader(bt))
+	if err != nil {
+		return err
+	}
+
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+o.client.apikey)
+
+	res, err := http.DefaultClient.Do(request.WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("API returned non-200 status code: %d, body: %s", res.StatusCode, string(bodyBytes))
+	}
+
+	reader := bufio.NewReader(res.Body)
+
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		line = bytes.TrimSpace(line)
+		if !bytes.HasPrefix(line, []byte("data: ")) {
+			continue
+		}
+
+		data := line[6:]
+
+		if string(data) == "[DONE]" {
+			break
+		}
+
+		var chunkResponse struct {
+			Choices []struct {
+				Delta struct {
+					Content string `json:"content"`
+					Role    string `json:"role"`
+				} `json:"delta"`
+			} `json:"choices"`
+		}
+
+		if err := json.Unmarshal(data, &chunkResponse); err != nil {
+			return err
+		}
+
+		if len(chunkResponse.Choices) > 0 && chunkResponse.Choices[0].Delta.Content != "" {
+			message := Message{
+				Role:    "assistant",
+				Message: chunkResponse.Choices[0].Delta.Content,
+			}
+
+			if err := callback(message); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
