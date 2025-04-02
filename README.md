@@ -3,18 +3,18 @@
   <img src="./go_thought.png" alt="go_thought Logo" width="300">
 </p>
 
-# go_thought
+# gothought
 
 A lightweight, intuitive library for building LLM-powered applications in Go.
 
-## What is go_thought?
+## What is gothought?
 
 go_thought provides a simple, fluent API for interacting with Large Language Models. Unlike more complex frameworks, go_thought focuses on minimizing boilerplate code while maintaining flexibility.
 
 ```go
-cli := NewClient(
-    WithApiKey(os.Getenv("OPENAI_API_KEY")),
-    WithModel("gpt-4o-mini"),
+cli := gothought.NewClient(
+    gothought.WithApiKey(os.Getenv("OPENAI_API_KEY")),
+    gothought.WithModel("gpt-4o-mini"),
 )
 
 response, err := cli.State(OPENAI).
@@ -23,7 +23,7 @@ response, err := cli.State(OPENAI).
     Q(context.Background())
 ```
 
-## Why go_thought?
+## Why gothought?
 
 While solutions like langchain-go offer comprehensive features, they often require significant configuration and understanding of complex abstractions. go_thought aims to solve common challenges in LLM application development with:
 
@@ -42,7 +42,7 @@ While solutions like langchain-go offer comprehensive features, they often requi
 ## Installation
 
 ```bash
-go get github.com/gobenpark/go_thought
+go get github.com/gobenpark/gothought
 ```
 
 ## Quickstart
@@ -55,14 +55,14 @@ import (
     "fmt"
     "os"
     
-    "github.com/gobenpark/go_thought"
+    "github.com/gobenpark/gothought"
 )
 
 func main() {
     // Initialize with your API key
-    cli := NewClient(
-        WithApiKey(os.Getenv("OPENAI_API_KEY")),
-        WithModel("gpt-4o"),
+    cli := gothought.NewClient(
+		gothought.WithApiKey(os.Getenv("OPENAI_API_KEY")),
+		gothought.WithModel("gpt-4o"),
     )
     
     // Build your prompt chain and execute
@@ -87,7 +87,7 @@ func main() {
 
 ## Roadmap
 
-Future plans for go_thought include:
+Future plans for gothought include:
 
 - Response parsing and structured output
 - Streaming support for real-time responses

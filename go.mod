@@ -1,4 +1,4 @@
-module github.com/gobenpark/go_thought
+module github.com/gobenpark/gothought
 
 go 1.24
 
