@@ -14,5 +14,5 @@ type State interface {
 	HumanPrompt(prompt string) State
 	AIPrompt(prompt string) State
 	Q(ctx context.Context) ([]Message, error)
-	Q_Stream(ctx context.Context, callback func(Message) error) error
+	QStream(ctx context.Context, callback func(Message) error) error
 }

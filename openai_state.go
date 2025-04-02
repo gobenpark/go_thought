@@ -157,7 +157,7 @@ func (o *OpenAIState) Q(ctx context.Context) ([]Message, error) {
 	return responseMessage, nil
 }
 
-func (o *OpenAIState) Q_Stream(ctx context.Context, callback func(Message) error) error {
+func (o *OpenAIState) QStream(ctx context.Context, callback func(Message) error) error {
 	body := OpenAIBody{
 		Model: o.client.model,
 		Messages: lo.Map(o.messages, func(item Message, index int) OpenAIMessage {
