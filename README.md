@@ -96,7 +96,3 @@ Future plans for go_thought include:
 ## Contributing
 
 Contributions, suggestions, and feature requests are welcome! Feel free to open issues or submit pull requests as the project evolves.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
