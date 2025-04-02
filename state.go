@@ -13,5 +13,5 @@ type State interface {
 	Prompt(message Message) State
 	HumanPrompt(prompt string) State
 	AIPrompt(prompt string) State
-	Q(ctx context.Context) (string, error)
+	Q(ctx context.Context) ([]Message, error)
 }

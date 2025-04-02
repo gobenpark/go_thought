@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/samber/lo"
@@ -24,6 +22,41 @@ type OpenAIBody struct {
 type OpenAIMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+}
+
+type OpenAIResponse struct {
+	Id      string `json:"id"`
+	Object  string `json:"object"`
+	Created int    `json:"created"`
+	Model   string `json:"model"`
+	Choices []struct {
+		Index   int `json:"index"`
+		Message struct {
+			Role        string        `json:"role"`
+			Content     string        `json:"content"`
+			Refusal     interface{}   `json:"refusal"`
+			Annotations []interface{} `json:"annotations"`
+		} `json:"message"`
+		Logprobs     interface{} `json:"logprobs"`
+		FinishReason string      `json:"finish_reason"`
+	} `json:"choices"`
+	Usage struct {
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		TotalTokens         int `json:"total_tokens"`
+		PromptTokensDetails struct {
+			CachedTokens int `json:"cached_tokens"`
+			AudioTokens  int `json:"audio_tokens"`
+		} `json:"prompt_tokens_details"`
+		CompletionTokensDetails struct {
+			ReasoningTokens          int `json:"reasoning_tokens"`
+			AudioTokens              int `json:"audio_tokens"`
+			AcceptedPredictionTokens int `json:"accepted_prediction_tokens"`
+			RejectedPredictionTokens int `json:"rejected_prediction_tokens"`
+		} `json:"completion_tokens_details"`
+	} `json:"usage"`
+	ServiceTier       string `json:"service_tier"`
+	SystemFingerprint string `json:"system_fingerprint"`
 }
 
 type OpenAIState struct {
@@ -64,7 +97,7 @@ func (o *OpenAIState) HumanPrompt(prompt string) State {
 	return o
 }
 
-func (o *OpenAIState) Q(ctx context.Context) (string, error) {
+func (o *OpenAIState) Q(ctx context.Context) ([]Message, error) {
 
 	body := OpenAIBody{
 		Model: o.client.model,
@@ -88,12 +121,12 @@ func (o *OpenAIState) Q(ctx context.Context) (string, error) {
 	}
 	bt, err := json.Marshal(body)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	request, err := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader(bt))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	request.Header.Set("Content-Type", "application/json")
@@ -101,15 +134,21 @@ func (o *OpenAIState) Q(ctx context.Context) (string, error) {
 
 	res, err := http.DefaultClient.Do(request.WithContext(ctx))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	fmt.Println(res.StatusCode)
 
-	bt, err = io.ReadAll(res.Body)
-	if err != nil {
-		return "", err
+	var result OpenAIResponse
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, err
 	}
-	fmt.Println(string(bt))
-	return string(bt), nil
 
+	var responseMessage []Message
+	for _, i := range result.Choices {
+		responseMessage = append(responseMessage, Message{
+			Role:    i.Message.Role,
+			Message: i.Message.Content,
+		})
+	}
+
+	return responseMessage, nil
 }
