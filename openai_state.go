@@ -5,27 +5,42 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/gobenpark/gothought/tool"
 	"github.com/samber/lo"
+	"github.com/tidwall/gjson"
 )
 
 type OpenAIBody struct {
-	Model            string          `json:"model"`
-	Messages         []OpenAIMessage `json:"messages"`
-	Temperature      float32         `json:"temperature"`
-	MaxTokens        int             `json:"max_tokens"`
-	TopP             int             `json:"top_p"`
-	FrequencyPenalty float32         `json:"frequency_penalty"`
-	PresencePenalty  float32         `json:"presence_penalty"`
-	Stream           bool            `json:"stream"`
+	Model            string                   `json:"model"`
+	Messages         []OpenAIMessage          `json:"messages"`
+	Temperature      float32                  `json:"temperature,omitempty"`
+	TopP             int                      `json:"top_p,omitempty"`
+	FrequencyPenalty float32                  `json:"frequency_penalty,omitempty"`
+	PresencePenalty  float32                  `json:"presence_penalty,omitempty"`
+	Stream           bool                     `json:"stream"`
+	Tools            []map[string]interface{} `json:"tools"`
+	ToolChoice       string                   `json:"tool_choice,omitempty"`
 }
 
 type OpenAIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string      `json:"role"`
+	Content    string      `json:"content"`
+	ToolCallID string      `json:"tool_call_id"`
+	ToolCalls  []ToolCalls `json:"tool_calls"`
+}
+
+type ToolCalls struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	} `json:"function"`
 }
 
 type OpenAIResponse struct {
@@ -106,45 +121,131 @@ func (o *OpenAIState) Q(ctx context.Context) ([]ResponseMessage, error) {
 	body := OpenAIBody{
 		Model: o.client.model,
 		Messages: lo.Map(o.messages, func(item Message, index int) OpenAIMessage {
+			//msg := OpenAIMessage{
+			//	Content: item.Message,
+			//	Role:    item.Role,
+			//}
+
 			return OpenAIMessage{
 				Content: item.Message,
 				Role:    item.Role,
 			}
 		}),
 		Temperature:      0.7,
-		MaxTokens:        1024,
 		TopP:             1,
 		FrequencyPenalty: 0.5,
 		PresencePenalty:  0.5,
 	}
-	bt, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
 
-	request, err := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader(bt))
-	if err != nil {
-		return nil, err
-	}
-
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+o.client.apikey)
-
-	res, err := http.DefaultClient.Do(request.WithContext(ctx))
-	if err != nil {
-		return nil, err
-	}
-
-	var result OpenAIResponse
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
-		return nil, err
+	if len(o.client.tools) > 0 {
+		body.Tools = lo.Map(o.client.tools, func(item tool.Tool, index int) map[string]interface{} {
+			return map[string]interface{}{
+				"type": "function",
+				"function": map[string]interface{}{
+					"name":        item.Name(),
+					"description": item.Description(),
+					"parameters":  item.ParameterSchema(),
+				},
+			}
+		})
+		body.ToolChoice = "auto"
 	}
 
 	var responseMessage []ResponseMessage
-	for _, i := range result.Choices {
-		responseMessage = append(responseMessage, ResponseMessage{
-			Message: i.Message.Content,
-		})
+
+AGENT:
+	for {
+		bt, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader(bt))
+		if err != nil {
+			return nil, err
+		}
+
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Authorization", "Bearer "+o.client.apikey)
+
+		res, err := http.DefaultClient.Do(request)
+		if err != nil {
+			return nil, err
+		}
+
+		if res.StatusCode != 200 {
+			buf := bytes.Buffer{}
+			if _, err := io.Copy(&buf, res.Body); err != nil {
+				return nil, err
+			}
+			return nil, errors.New(buf.String())
+		}
+
+		buf := &bytes.Buffer{}
+		if _, err := io.Copy(buf, res.Body); err != nil {
+			return nil, err
+		}
+
+		re := gjson.ParseBytes(buf.Bytes())
+		for _, choice := range re.Get("choices").Array() {
+
+			switch choice.Get("finish_reason").String() {
+			case "stop":
+
+				responseMessage = append(responseMessage, ResponseMessage{
+					Message: choice.Get("message.content").String(),
+				})
+
+				break AGENT
+			/*
+				tool format example:
+				{
+					"id": "call_Su8cd9iLod6gNvdPnbhxL2Oa",
+					"type": "function",
+					"function": {
+					  "name": "brave_web_search",
+					  "arguments": "{\"query\":\"current weather in Paris today\"}"
+					}
+				}
+			*/
+			case "tool_calls":
+				assistantMessage := OpenAIMessage{
+					Role: "assistant",
+				}
+				toolCalls := []ToolCalls{}
+				for _, toolItem := range choice.Get("message.tool_calls").Array() {
+					toolCall := ToolCalls{
+						ID:   toolItem.Get("id").String(),
+						Type: toolItem.Get("type").String(),
+					}
+					toolCall.Function.Name = toolItem.Get("function.name").String()
+					toolCall.Function.Arguments = toolItem.Get("function.arguments").String()
+					toolCalls = append(toolCalls, toolCall)
+				}
+				assistantMessage.ToolCalls = toolCalls
+				body.Messages = append(body.Messages, assistantMessage)
+
+				toolCall := choice.Get("message.tool_calls").Array()
+				for _, toolItem := range toolCall {
+					name := toolItem.Get("function.name").String()
+					for _, t := range o.client.tools {
+						if t.Name() == name {
+							toolResult, err := t.Call(ctx, toolItem.Get("function.arguments").String())
+							if err != nil {
+								return nil, err
+							}
+
+							body.Messages = append(body.Messages, OpenAIMessage{
+								Role:       "tool",
+								ToolCallID: toolItem.Get("id").String(),
+								Content:    toolResult,
+							})
+						}
+					}
+				}
+				continue AGENT
+			}
+		}
 	}
 
 	return responseMessage, nil
@@ -165,7 +266,6 @@ func (o *OpenAIState) QStream(ctx context.Context, callback func(ResponseMessage
 			return om
 		}),
 		Temperature:      0.7,
-		MaxTokens:        1024,
 		TopP:             1,
 		FrequencyPenalty: 0.5,
 		PresencePenalty:  0.5,
@@ -177,7 +277,7 @@ func (o *OpenAIState) QStream(ctx context.Context, callback func(ResponseMessage
 		return err
 	}
 
-	request, err := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader(bt))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader(bt))
 	if err != nil {
 		return err
 	}
@@ -185,7 +285,7 @@ func (o *OpenAIState) QStream(ctx context.Context, callback func(ResponseMessage
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+o.client.apikey)
 
-	res, err := http.DefaultClient.Do(request.WithContext(ctx))
+	res, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return err
 	}

@@ -9,6 +9,19 @@ import (
 	"net/http"
 )
 
+/*
+	Claude Input Model
+
+API Spec
+
+	{
+		"model": "claude-3-7-sonnet-20250219",
+		"max_tokens": 1024,
+		"messages": [
+			{"role": "user", "content": "Hello, world"}
+		]
+	}
+*/
 type ClaudeInput struct {
 	Model    string `json:"model"`
 	MaxToken int
@@ -97,7 +110,9 @@ func (c *ClaudeState) Q(ctx context.Context) ([]ResponseMessage, error) {
 
 	if res.StatusCode != 200 {
 		buf := bytes.Buffer{}
-		io.Copy(&buf, res.Body)
+		if _, err := io.Copy(&buf, res.Body); err != nil {
+			return nil, err
+		}
 		return nil, errors.New(buf.String())
 	}
 
