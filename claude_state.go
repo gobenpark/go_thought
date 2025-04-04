@@ -46,11 +46,11 @@ type ClaudeResponse struct {
 }
 
 type ClaudeState struct {
-	client   *Client
+	client   *LanguageModel
 	messages []Message
 }
 
-func NewClaudeState(client *Client) *ClaudeState {
+func NewClaudeState(client *LanguageModel) *ClaudeState {
 	return &ClaudeState{client: client, messages: []Message{}}
 }
 
@@ -81,6 +81,10 @@ func (c *ClaudeState) AIPrompt(prompt string) State {
 		Message: prompt,
 	})
 	return c
+}
+
+func (c *ClaudeState) QWithType(ctx context.Context, oj interface{}) error {
+	return nil
 }
 
 func (c *ClaudeState) Q(ctx context.Context) ([]ResponseMessage, error) {
@@ -128,7 +132,7 @@ func (c *ClaudeState) Q(ctx context.Context) ([]ResponseMessage, error) {
 		})
 	}
 
-	return messages, nil
+	return nil, nil
 }
 
 func (c *ClaudeState) QStream(ctx context.Context, callback func(ResponseMessage) error) error {

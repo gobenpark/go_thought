@@ -79,11 +79,11 @@ type OpenAIResponse struct {
 }
 
 type OpenAIState struct {
-	client   *Client
+	client   *LanguageModel
 	messages []Message
 }
 
-func NewOpenAIState(client *Client) *OpenAIState {
+func NewOpenAIState(client *LanguageModel) *OpenAIState {
 	return &OpenAIState{client: client, messages: []Message{}}
 }
 
@@ -114,6 +114,145 @@ func (o *OpenAIState) HumanPrompt(prompt string) State {
 		Message: prompt,
 	})
 	return o
+}
+
+func (o *OpenAIState) QWithType(ctx context.Context, oj interface{}) error {
+	body := OpenAIBody{
+		Model: o.client.model,
+		Messages: lo.Map(o.messages, func(item Message, index int) OpenAIMessage {
+			return OpenAIMessage{
+				Content: item.Message,
+				Role:    item.Role,
+			}
+		}),
+		Temperature:      0.7,
+		TopP:             1,
+		FrequencyPenalty: 0.5,
+		PresencePenalty:  0.5,
+	}
+
+	msgLen := len(body.Messages)
+	msg := body.Messages[msgLen-1]
+
+	msg.Content += "\n\n" + GenerateSchemaPrompt(oj)
+	body.Messages[msgLen-1] = msg
+
+	if len(o.client.tools) > 0 {
+		body.Tools = lo.Map(o.client.tools, func(item tool.Tool, index int) map[string]interface{} {
+			return map[string]interface{}{
+				"type": "function",
+				"function": map[string]interface{}{
+					"name":        item.Name(),
+					"description": item.Description(),
+					"parameters":  item.ParameterSchema(),
+				},
+			}
+		})
+		body.ToolChoice = "auto"
+	}
+
+	//var responseMessage []ResponseMessage
+
+AGENT:
+	for {
+		bt, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader(bt))
+		if err != nil {
+			return err
+		}
+
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Authorization", "Bearer "+o.client.apikey)
+
+		res, err := http.DefaultClient.Do(request)
+		if err != nil {
+			return err
+		}
+
+		if res.StatusCode != 200 {
+			buf := bytes.Buffer{}
+			if _, err := io.Copy(&buf, res.Body); err != nil {
+				return err
+			}
+			return errors.New(buf.String())
+		}
+
+		buf := &bytes.Buffer{}
+		if _, err := io.Copy(buf, res.Body); err != nil {
+			return err
+		}
+
+		re := gjson.ParseBytes(buf.Bytes())
+		for _, choice := range re.Get("choices").Array() {
+
+			switch choice.Get("finish_reason").String() {
+			case "stop":
+
+				if err := ParsePrompt(oj, choice.Get("message.content").String()); err != nil {
+					return err
+				}
+				return nil
+				//responseMessage = append(responseMessage, ResponseMessage{
+				//	Message: choice.Get("message.content").String(),
+				//})
+
+				break AGENT
+			/*
+				tool format example:
+				{
+					"id": "call_Su8cd9iLod6gNvdPnbhxL2Oa",
+					"type": "function",
+					"function": {
+					  "name": "brave_web_search",
+					  "arguments": "{\"query\":\"current weather in Paris today\"}"
+					}
+				}
+			*/
+			case "tool_calls":
+				assistantMessage := OpenAIMessage{
+					Role: "assistant",
+				}
+				toolCalls := []ToolCalls{}
+				for _, toolItem := range choice.Get("message.tool_calls").Array() {
+					toolCall := ToolCalls{
+						ID:   toolItem.Get("id").String(),
+						Type: toolItem.Get("type").String(),
+					}
+					toolCall.Function.Name = toolItem.Get("function.name").String()
+					toolCall.Function.Arguments = toolItem.Get("function.arguments").String()
+					toolCalls = append(toolCalls, toolCall)
+				}
+				assistantMessage.ToolCalls = toolCalls
+				body.Messages = append(body.Messages, assistantMessage)
+
+				toolCall := choice.Get("message.tool_calls").Array()
+				for _, toolItem := range toolCall {
+					name := toolItem.Get("function.name").String()
+					for _, t := range o.client.tools {
+						if t.Name() == name {
+							toolResult, err := t.Call(ctx, toolItem.Get("function.arguments").String())
+							if err != nil {
+								return err
+							}
+
+							body.Messages = append(body.Messages, OpenAIMessage{
+								Role:       "tool",
+								ToolCallID: toolItem.Get("id").String(),
+								Content:    toolResult,
+							})
+						}
+					}
+				}
+				continue AGENT
+			}
+		}
+	}
+
+	return nil
 }
 
 func (o *OpenAIState) Q(ctx context.Context) ([]ResponseMessage, error) {
@@ -248,7 +387,7 @@ AGENT:
 		}
 	}
 
-	return responseMessage, nil
+	return nil, nil
 }
 
 func (o *OpenAIState) QStream(ctx context.Context, callback func(ResponseMessage) error) error {

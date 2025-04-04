@@ -18,4 +18,5 @@ type State interface {
 	AIPrompt(prompt string) State
 	Q(ctx context.Context) ([]ResponseMessage, error)
 	QStream(ctx context.Context, callback func(ResponseMessage) error) error
+	QWithType(ctx context.Context, oj interface{}) error
 }

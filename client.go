@@ -4,14 +4,14 @@ import (
 	"github.com/gobenpark/gothought/tool"
 )
 
-type Client struct {
+type LanguageModel struct {
 	apikey string
 	model  string
 	tools  []tool.Tool
 }
 
-func NewClient(options ...Option) *Client {
-	cli := &Client{
+func NewLanguageModel(options ...Option) *LanguageModel {
+	cli := &LanguageModel{
 		tools: []tool.Tool{},
 	}
 	for _, option := range options {
@@ -21,7 +21,7 @@ func NewClient(options ...Option) *Client {
 	return cli
 }
 
-func (c *Client) State(st StateType) State {
+func (c *LanguageModel) State(st StateType) State {
 	switch st {
 	case OPENAI:
 		return NewOpenAIState(c)
@@ -32,7 +32,7 @@ func (c *Client) State(st StateType) State {
 }
 
 // AddTool adds a tool to the client
-func (c *Client) AddTool(t tool.Tool) *Client {
+func (c *LanguageModel) AddTool(t tool.Tool) *LanguageModel {
 	c.tools = append(c.tools, t)
 	return c
 }
