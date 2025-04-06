@@ -11,7 +11,7 @@ A lightweight, intuitive library for building LLM-powered applications in Go.
 gothought provides a simple, fluent API for interacting with Large Language Models. Unlike more complex frameworks, gothought focuses on minimizing boilerplate code while maintaining flexibility.
 
 ```go
-cli := gothought.NewClient(
+cli := gothought.NewLanguageModel(
     gothought.WithApiKey(os.Getenv("OPENAI_API_KEY")),
     gothought.WithModel("gpt-4o-mini"),
 )
@@ -61,7 +61,7 @@ import (
 
 func main() {
     // Initialize with your API key
-    cli := gothought.NewClient(
+    cli := gothought.NewLanguageModel(
         gothought.WithApiKey(os.Getenv("OPENAI_API_KEY")),
         gothought.WithModel("gpt-4o"),
     )
@@ -84,7 +84,7 @@ func main() {
 ### Using Claude
 
 ```go
-cli := gothought.NewClient(
+cli := gothought.NewLanguageModel(
     gothought.WithApiKey(os.Getenv("ANTHROPIC_API_KEY")),
     gothought.WithModel("claude-3-opus-20240229"),
 )
