@@ -1,19 +1,31 @@
 package main
 
 import (
+	"context"
+	"errors"
+
 	"github.com/gobenpark/gothought/tool"
 )
 
+const (
+	FinishReasonStop      = "stop"
+	FinishReasonToolCalls = "tool_calls"
+)
+
 type LanguageModel struct {
-	apikey string
-	model  string
-	tools  []tool.Tool
+	tools         map[string]tool.Tool
+	provider      Provider
+	messages      []Message
+	maxIterations int // maxIterations default int values 10
 }
 
-func NewLanguageModel(options ...Option) *LanguageModel {
+func NewLanguageModel(p Provider, options ...Option) *LanguageModel {
 	cli := &LanguageModel{
-		tools: []tool.Tool{},
+		provider:      p,
+		maxIterations: 10,
+		tools:         map[string]tool.Tool{},
 	}
+
 	for _, option := range options {
 		option(cli)
 	}
@@ -21,18 +33,96 @@ func NewLanguageModel(options ...Option) *LanguageModel {
 	return cli
 }
 
-func (c *LanguageModel) State(st StateType) State {
-	switch st {
-	case OPENAI:
-		return NewOpenAIState(c)
-	case CLAUDE:
-		return NewClaudeState(c)
-	}
-	return nil
+// AddTool adds a tool to the client
+func (l *LanguageModel) AddTool(t tool.Tool) *LanguageModel {
+	l.tools[t.Name()] = t
+	return l
 }
 
-// AddTool adds a tool to the client
-func (c *LanguageModel) AddTool(t tool.Tool) *LanguageModel {
-	c.tools = append(c.tools, t)
-	return c
+// SystemPrompt adds a message to the client messages
+func (l *LanguageModel) SystemPrompt(prompt string) *LanguageModel {
+	l.messages = append(l.messages, Message{
+		Role:    "system",
+		Message: prompt,
+	})
+	return l
+}
+
+func (l *LanguageModel) AIPrompt(prompt string) *LanguageModel {
+	l.messages = append(l.messages, Message{
+		Role:    "AI",
+		Message: prompt,
+	})
+	return l
+}
+
+func (l *LanguageModel) Prompt(message Message) *LanguageModel {
+	l.messages = append(l.messages, message)
+	return l
+}
+
+func (l *LanguageModel) HumanPrompt(prompt string) *LanguageModel {
+	l.messages = append(l.messages, Message{
+		Role:    "user",
+		Message: prompt,
+	})
+	return l
+}
+
+func (l *LanguageModel) Q(ctx context.Context) (*Message, error) {
+
+	messages := l.messages
+
+	for i := 0; i < l.maxIterations; i++ {
+		response, finishReason, err := l.provider.Generate(ctx, l.tools, messages)
+		if err != nil {
+			return nil, err
+		}
+
+		switch finishReason {
+		case FinishReasonStop:
+			return response, nil
+		case FinishReasonToolCalls:
+			messages = append(messages, *response)
+
+			for _, tl := range response.ToolCalls {
+				tres, err := l.tools[tl.Function.Name].Call(ctx, tl.Function.Arguments)
+				if err != nil {
+					return nil, err
+				}
+				messages = append(messages, Message{
+					Role:       "tool",
+					ToolCallID: tl.ID,
+					Message:    tres,
+				})
+			}
+		}
+	}
+	return nil, errors.New("max iterations reached")
+}
+
+func (l *LanguageModel) QStream(ctx context.Context, callback func(Message) error) error {
+	if p, ok := any(l.provider).(StreamingCapable); ok {
+		return p.GenerateStreaming(ctx, l.messages, callback)
+	}
+
+	return errors.New("streaming not supported for this provider")
+}
+
+func (o *LanguageModel) QWith(ctx context.Context, oj interface{}) error {
+	msgLen := len(o.messages)
+	msg := o.messages[msgLen-1]
+
+	msg.Message += "\n\n" + GenerateSchemaPrompt(oj)
+	o.messages[msgLen-1] = msg
+
+	res, _, err := o.provider.Generate(ctx, o.tools, o.messages)
+	if err != nil {
+		return err
+	}
+
+	if err := ParsePrompt(oj, res.Message); err != nil {
+		return err
+	}
+	return nil
 }

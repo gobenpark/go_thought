@@ -99,8 +99,6 @@ func (b *BraveSearchTool) Call(ctx context.Context, params string) (string, erro
 		return "", fmt.Errorf("invalid search parameters: %v", err)
 	}
 
-	fmt.Println(searchParams.Query)
-
 	// Validate parameters
 	if searchParams.Query == "" {
 		return "", errors.New("query parameter is required")

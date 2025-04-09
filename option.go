@@ -2,14 +2,9 @@ package main
 
 type Option func(c *LanguageModel)
 
-func WithApiKey(apikey string) Option {
+// WithIteration max Iterations of LLM Agent loop
+func WithIteration(iter int) Option {
 	return func(c *LanguageModel) {
-		c.apikey = apikey
-	}
-}
-
-func WithModel(model string) Option {
-	return func(c *LanguageModel) {
-		c.model = model
+		c.maxIterations = iter
 	}
 }
