@@ -33,6 +33,10 @@ func NewLanguageModel(p Provider, options ...Option) *LanguageModel {
 	return cli
 }
 
+func (l *LanguageModel) SetPrompts(prompts []Message) {
+	l.messages = prompts
+}
+
 // AddTool adds a tool to the client
 func (l *LanguageModel) AddTool(t tool.Tool) *LanguageModel {
 	l.tools[t.Name()] = t
