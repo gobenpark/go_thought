@@ -1,4 +1,4 @@
-package main
+package gothought
 
 type Option func(c *LanguageModel)
 

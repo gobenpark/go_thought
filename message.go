@@ -1,4 +1,4 @@
-package main
+package gothought
 
 type Message struct {
 	Role       string `json:"role"`

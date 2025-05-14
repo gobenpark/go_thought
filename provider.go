@@ -1,5 +1,6 @@
-//go:generate mockgen -source=./provider.go -destination=./mock_provider.go -package=main
-package main
+//go:generate mockgen -source=./provider.go -destination=./mock_provider.go -package=gothought
+
+package gothought
 
 import (
 	"context"
